@@ -141,9 +141,8 @@ class Vocabs(object):
 
     @classmethod
     def make(cls, corpus:List[Union[str, Path]], vocab_size:int=8000, level:str='bpe'):
-        fr = FileReader(corpus, segmented=False)
         temp_file = Path('./_temp.txt')
-        corp = fr.unique()
+        corp = get_unique(corpus)
         learn_vocab(inp=corp, level=level, model=temp_file, vocab_size=vocab_size)
         vcb = Vocabs.load(temp_file)
         os.remove(temp_file)

@@ -12,3 +12,11 @@ cpu_device = torch.device('cpu')
 
 from ruamel.yaml import YAML
 yaml = YAML()
+
+from typing import List, Union, Dict
+from pathlib import Path
+
+FileType = Union[str, Path]
+FileList = List[FileType]
+FileDict = Dict[str,FileType]
+FileAny  = Union[FileList, FileDict]
