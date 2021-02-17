@@ -62,12 +62,13 @@ class Converter(object):
         return np.asarray(mat)
 
     @classmethod
-    def list2tensor(cls, mat, device:str='cpu', requires_grad:bool=False):
+    def list2tensor(cls, mat, gpu:int:-1, requires_grad:bool=False):
         nmat = cls.list2numpy(mat)
         tmat = torch.from_numpy(mat).long()
         if requires_grad:
             tmat.requires_grad_ = True
-        tmat = tmat.to(device)
+        if gpu >=0:
+            tmat = tmat.cuda(gpu)
         return tmat
         
     @classmethod

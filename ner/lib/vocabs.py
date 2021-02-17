@@ -190,7 +190,18 @@ class Vocabs(object):
 class Embeddings(object):
     
     def __init__(self):
-        pass
+        self.emb_file = emb_file if type(emb_file) == Path else Path(emb_file)
+        self.emb_dim = emb_dim
+        self.mat = None
+
+        if vocab is not None:
+            self.vocab = vocab
+            self.found = [False] * len(vocab)   
+            self.mat = np.zeros((len(vocab), self.emb_dim), dtype=np.float64)
+
+        # Models for generating embeddings : FastText, Mimick
+        self.ft_model = None
+        self.mk_model = None
 
     @property
     def vocabulary(self):

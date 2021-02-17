@@ -146,12 +146,12 @@ class Dataset(object):
 
 class Batch(object):
     
-    def __init__(self, mats, keys, dims, schema, device='cpu'):
+    def __init__(self, mats, keys, dims, schema, gpu:int=-1):
         self.schema = schema
         self.mats = dict()
         self.dims = dims
         for key, mat in zip(keys, mats):
-            self.mats[key] = self.process(mat)
+            self.mats[key] = self.process(mat, gpu)
 
     @property
     def forward(self):
@@ -169,15 +169,15 @@ class Batch(object):
     def predict(self):
         return [self.mat[key] for key in self.schema.predict]
 
-    def process(self, mat, device=None):
-        if device is None:
-            device = self.device
-        mat = Cr.list2tensor(mat, device)
+    def process(self, mat, gpu:int=-1):
+        mat = Cr.list2tensor(mat, gpu)
         return mat
+
 
 class BatchIterable(object):
     
-    def __init__(self, dataset:Dataset, schema=None, batch_size:int=32, shuffle:bool=True, indexed:bool=False, device=None):
+    def __init__(self, dataset:Dataset, schema=None, batch_size:int=32, shuffle:bool=True, 
+                        indexed:bool=False, gpu:int=-1):
         self.batch_size = batch_size
 
         self.keys = dataset.keys
@@ -189,7 +189,7 @@ class BatchIterable(object):
             self.shuffled = True
             self.permuation = self._permute()
 
-        self.device = device
+        self.gpu = gpu
         self.schema = None
         self.indexed = indexed
         self.vocabs = dict()
@@ -204,13 +204,13 @@ class BatchIterable(object):
         cur_row = 0
         for p in self.permuation:
             if cur_row == self.batch_size:
-                yield Batch(mats, self.keys, self.dataset.dims, self.schema, device=self.device)
+                yield Batch(mats, self.keys, self.dataset.dims, self.schema, gpu=self.gpu)
                 mats = [[] for x in range(len(self.keys))]
                 cur_row = 0
             for x, key in enumerate(self.keys):
                 mats[x].append(self.dataset.cols[key][p])
             cur_row += 1
-        yield Batch(mats, self.keys, self.dataset.dims, self.schema, device=self.device)
+        yield Batch(mats, self.keys, self.dataset.dims, self.schema, gpu=self.gpu)
 
     def __len__(self):
         return int(math.ceil(len(self.dataset / self.batch_size)))
