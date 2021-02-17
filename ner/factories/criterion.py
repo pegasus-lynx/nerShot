@@ -6,7 +6,7 @@ from ..layers.csim_loss import CosineSim
 class CriterionFactory():
 
     criterion_types = [
-        'mse', 'nll', 'kld', 'csim'
+        'nll', 'kld', 'csim'
     ]
 
     @staticmethod
@@ -14,9 +14,7 @@ class CriterionFactory():
         criterion_type = criterion_type.lower()
         assert criterion_type in CriterionFactory.criterion_types
 
-        if criterion_type == 'mse':
-            criterion = nn.MSELoss()
-        elif criterion_type == 'nll':
+        if criterion_type == 'nll':
             criterion = nn.NLLLoss()
         elif criterion_type == 'kld':
             criterion = nn.KLDivLoss()
