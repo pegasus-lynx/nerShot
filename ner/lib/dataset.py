@@ -1,9 +1,13 @@
 import random
+import math
 import json
 from pathlib import Path
 from collections import Counter, OrderedDict
 from typing import Iterable, Iterator, List, Tuple, Union
 from .functionals import Formatter as Fr
+from .functionals import Indexer as Ir
+from .functionals import Padder as Pd
+from .functionals import Converter as Cr
 
 class Dataset(object):
 
@@ -13,10 +17,10 @@ class Dataset(object):
         self.length = 0
         for key in keys:
             self.cols[key] = []
-        self._set_dims(dims)
 
-        self.is_shuffled = False
-        self.permutation = None
+        if dims is not None:
+            self._set_dims(dims)
+
 
     def __len__(self):
         return self.length
@@ -83,20 +87,34 @@ class Dataset(object):
         for key, data_point in zip(self.keys, data_row):
             self.cols[key].append(data_point)
 
-    def shuffle(self):
-        self.is_shuffled = True
-        self.permutation = random.sample([x for x in range(len(self))], len(self))
-
-    def unshuffle(self):
-        self.is_shuffled = False
-        self.permutation = [x for x in range(len(self))]
-
     def add(self, dataset):
         if not self._validate_keys(dataset.keys)
             print('Keys don\'t match')
             return
         for row in dataset:
             self.append(row)
+
+    def add_bos(self, key, vocab, add_type:str='token'):
+        # Supports addition for 1D lists only
+        assert key in self.keys
+        assert 'sos' in vocab.reserved.keys()
+        value = self.reserved['sos']
+        if add_type == 'index':
+            value = self.reserved_idx('sos')
+        for p, cell in enumerate(self.cols[key]):
+            cell.insert(0, value)
+            self.cols[key][p] = cell
+
+    def add_eos(self, key, vocab, add_type:str='token'):
+        # Supports addition for 1D lists only
+        assert key in self.keys
+        assert 'eos' in vocab.reserved.keys()
+        value = self.reserved['eos']
+        if add_type == 'index':
+            value = self.reserved_idx('eos')
+        for p, cell in enumerate(self.cols[key]):
+            cell.append(value)
+            self.cols[key][p] = cell
 
     @classmethod
     def merge(cls, keys, datasets):
@@ -125,17 +143,126 @@ class Dataset(object):
             for row in dataset:
                 fw.write(f'{cls.format(row=row)}\n')
 
-    # def minibatches(self, size):
-    #     ''' Returns batches from the dataset '''
-    #     if self.shuffled is None:
-    #         self.shuffled = [ x for x in range(len(self))]
-    #     batch = [[] for x in range(len(self.lists))]
-    #     curr = 0
-    #     for ix in self.shuffled:
-    #         if curr == size:
-    #             curr = 0
-    #             yield tuple(batch)
-    #             batch = [[] for x in range(len(self.lists))]
-    #         for p, key in enumerate(self.lists.keys()):
-    #             batch[p].append(self.lists[key][ix])
-    #         curr += 1
+
+class Batch(object):
+    
+    def __init__(self, mats, keys, dims, schema, device='cpu'):
+        self.schema = schema
+        self.mats = dict()
+        self.dims = dims
+        for key, mat in zip(keys, mats):
+            self.mats[key] = self.process(mat)
+
+    @property
+    def forward(self):
+        return [self.mat[key] for key in self.schema.forward]
+
+    @property
+    def labels(self):
+        return [self.mat[key] for key in self.schema.labels]
+
+    @property
+    def get_loss(self):
+        return [self.mat[key] for key in self.schema.get_loss]
+
+    @property
+    def predict(self):
+        return [self.mat[key] for key in self.schema.predict]
+
+    def process(self, mat, device=None):
+        if device is None:
+            device = self.device
+        mat = Cr.list2tensor(mat, device)
+        return mat
+
+class BatchIterable(object):
+    
+    def __init__(self, dataset:Dataset, schema=None, batch_size:int=32, shuffle:bool=True, indexed:bool=False, device=None):
+        self.batch_size = batch_size
+
+        self.keys = dataset.keys
+        self.dataset = dataset
+
+        self.shuffled = False
+        self.permuation = []
+        if shuffle: 
+            self.shuffled = True
+            self.permuation = self._permute()
+
+        self.device = device
+        self.schema = None
+        self.indexed = indexed
+        self.vocabs = dict()
+
+    def __iter__(self):
+        if not self.indexed:
+            raise ValueError('Batch not indexed. Batch must be indexed before iterating')
+        if self.schema is None:
+            raise ValueError('Schema is not set')
+
+        mats = [[] for x in range(len(self.keys))]
+        cur_row = 0
+        for p in self.permuation:
+            if cur_row == self.batch_size:
+                yield Batch(mats, self.keys, self.dataset.dims, self.schema, device=self.device)
+                mats = [[] for x in range(len(self.keys))]
+                cur_row = 0
+            for x, key in enumerate(self.keys):
+                mats[x].append(self.dataset.cols[key][p])
+            cur_row += 1
+        yield Batch(mats, self.keys, self.dataset.dims, self.schema, device=self.device)
+
+    def __len__(self):
+        return int(math.ceil(len(self.dataset / self.batch_size)))
+
+    def set_schema(self, schema):
+        keys = schema.get_keys()
+        for key in keys:
+            if key not in self.keys:
+                print('Cannot set schema. The key mentioned in schema is not present in the dataset')
+                return
+        self.schema = schema    
+
+    def set_indexers(self, dataset_key:str, vocab):
+        if dataset_key not in self.keys:
+            return
+        self.vocabs[dataset_key] = vocab
+
+    def add_bos_eos(self, add_bos:bool=True, add_eos:bool=True, keys:List[str]=None):
+        if keys is None:
+            keys = self.keys
+        if add_bos:
+            for key in keys:
+                self.dataset.add_bos(key, self.vocabs[key])
+        if add_eos:
+            for key in keys:
+                self.dataset.add_eos(key, self.vocabs[key])
+
+    def index(self):
+        for key in self.keys:
+            assert key not in self.indexers.keys():
+        if self.indexed:
+            return
+        keys = self.keys
+        indexed_dataset = Dataset(keys, dims=self.dataset.dims)
+        for row in self.dataset:
+            irow = []
+            for key, cell in zip(keys, row):
+                icell = Ir.index(cell, self.vocabs[key])
+                irow.append(icell)
+            indexed_dataset.append(irow)
+        self.dataset = indexed_dataset
+        return
+
+    def pad(self, padshapes:Dict[str,int], pad_idx:int=0):
+        for key in self.keys:
+            assert key in padshapes.keys()
+            assert len(padshapes[key]) == self.dataset.dims[key] - 1
+        dims = self.dataset.dims
+        for p, row in enumerate(self.dataset):
+            for key, cell in zip(self.keys, row):
+                self.dataset.cols[key][p] = Pd.pad(cell, dims[key], pad_idx, padshapes[key])
+        
+    def _permute(self):
+        permutation = random.sample([x for x in range(len(self))], len(self))
+        return permutation 

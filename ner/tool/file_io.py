@@ -40,9 +40,9 @@ class FileReader:
             yield from cls.get_lines(path, **kwargs)
 
 class FileWriter:
-    def __init__(self, path, text=True):
+    def __init__(self, path, text=True, append=False):
         self.path = path
-        self.mode = 'wt' if text else 'wb'
+        self.mode =  'a' if append else 'w' + 't' if text else 'b'
         self.fd = self.path.open(self.mode)
    
     def write(self, text):

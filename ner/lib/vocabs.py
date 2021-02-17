@@ -7,6 +7,7 @@ from collections import Counter
 
 from nlcodec import Type, learn_vocab, load_scheme, term_freq, Reseved
 from .misc import Filepath, FileReader, FileWriter, get_now, log
+from ..tool.file_io import FileReader
 
 class Token(object):
     def __init__(self, name, freq:int=0, idx:int=-1, level:int=2, kids=None):
@@ -30,6 +31,8 @@ class Vocabs(object):
         self.id2pos = dict()
         self.table = []
         self.max_index = 0
+
+        self.reserved = dict()
         if add_reserved is not None:
             self.add_reserved(add_reserved)
 
@@ -106,12 +109,24 @@ class Vocabs(object):
         pass
 
     def add_reserved(self, res_type:str=None):
-        if reserved_type is None:
+        if res_type is None:
             return
+        
         tokens = Reserved.all(res_type)
+        if len(tokens)==0:
+            return
+
         for ix, name in enumerate(tokens):
             token = Token(name, freq=0, level=-1)
             self.append(token)
+        
+        self.reserved['pad'] = Reserved.PAD_TOK[0]
+        if res_type in ['word', 'char']:
+            keys = ['pad', 'oov', 'sos', 'eos', 'brk', 'spc']
+            for key, tok in zip(keys, Reserved.TAG_TOKS):
+                self.reserved[key] = tok
+        elif res_type in 'ner':
+            self.reserved['pad'] = Reserved.PAD_TOK[0]
 
     def add(self, vocab):
         for token in vocab:
@@ -147,3 +162,167 @@ class Vocabs(object):
         vcb = Vocabs.load(temp_file)
         os.remove(temp_file)
         return vcb
+
+    def reserved_idx(self, res_type:str):
+        if res_type in self.reserved.keys():
+            return self.index(self.reserved[res_type])
+        return None
+
+    @classmethod
+    def lowered(cls, vocab):
+        vmap = [-1] * len(vocab)
+        rvmap = dict()
+        lvcb = Vocabs()
+        for i, x in enumerate(vocab):
+            lx = x.name.lower()
+            if lvcb.index(lx) is not None:
+                vmap[i] = lvcb.index(lx)
+            else:
+                index = len(lvcb)
+                lvcb.append(lx)
+                vmap[i] = index        
+        for i, v in enumerate(vmap):
+            if v not in rvmap.keys():
+                rvmap[v] = []
+            rvmap[v].append(i)
+        return lvcb, rvmap
+
+class Embeddings(object):
+    
+    def __init__(self):
+        pass
+
+    @property
+    def vocabulary(self):
+        return self.vocab 
+
+    @vocabulary.setter
+    def vocabulary(self, vocab):
+        if type(vocab) == Path or type(vocab) == str:
+            vocab = Vocabs.load(vocab)
+        self.vocab = vocab
+        self.found = [False] * len(vocab)   
+        self.mat = np.zeros((len(vocab), self.emb_dim), dtype=np.float64)
+
+    @property
+    def oovs(self):
+        if self.found is None or self.vocab is None:
+            return []
+        return [x for i, x in enumerate(self.vocab) if not self.found[i]]
+
+    @classmethod
+    def load(cls, in_file: Union[Path or str], is_expanded:bool=False):
+        if not is_expanded:
+            with np.load(in_file) as data:
+                return data["embeddings"]
+        emb = cls(in_file)
+        emb._build()
+        return emb  
+
+    @classmethod
+    def save(cls, emb, out_file:Union[Path or str], save_expanded:bool=False):
+        if not save_expanded:
+            np.savez_compressed(out_file, embeddings=emb.mat)
+            return
+        
+        assert emb.mat is not None
+        assert len(vocab) == emb.mat.shape[0]
+        
+        with open(emb_file, "w") as ef:
+            ef.write(f'{emb.mat.shape[0]} {emb.mat.shape[1]}\n')
+            for ix, word in enumerate(emb.vocab):
+                ef.write(f'{word} {" ".join(str(x) for x in emb.mat[ix])}\n')
+        return None
+
+    def normalize(self, normalize_to:float = 1.0):
+        if self.mat is None:
+            return
+        size = self.mat.shape[0]
+        for ix in range(size):
+            norm = np.linalg.norm(self.mat[ix])
+            if norm == 0:
+                norm = 1
+            self.mat[ix] = self.mat[ix] / norm
+
+    def _build(self):
+        fs = open(self.emb_file, 'r')
+        first = True
+        size, emb_dim, pos = 0, 0, 0
+        for line in fs:
+            if first:
+                first = False
+                size, emb_dim = [int(x) for x in line.strip().split()]
+                self.vocab = Vocabs()
+                self.found = [False] * size
+                self.mat = np.zeros((size, emb_dim), dtype=np.float64)      
+            tokens = line.strip().split()
+            word, vec = tokens[0], tokens[1:]
+            self.vocab.append(word)
+            self.found[pos] = True
+            self.mat[pos] = vec
+            pos += 1
+
+    def make(self, lowered=True):
+        assert self.vocab is not None
+        assert self.emb_file.exists()
+
+        if not self.found or self.mat is None:
+            self.found = [False] * len(self.vocab)
+            self.mat = np.zeros((len(self.vocab), self.emb_dim), dtype=np.float64)
+
+        if lowered:
+            lvocab, lmap = Vocabs.lowered(self.vocab)
+            lowered_found = set()
+
+        print(f'Scanning {self.emb_file} ... ')
+        with open(self.emb_file, 'r') as ef:
+            for line in tqdm(ef):
+                tokens = line.strip().split()
+                if len(tokens) != self.emb_dim + 1:
+                    continue
+                word, vec = tokens[0], tokens[1:]
+                pos = self.vocab.index(word)
+                if pos:
+                    if not self.found[pos]:
+                        self.found[pos] = True
+                        self.mat[pos] = vec
+                        if lowered and pos in lowered_found:
+                            lowered_found.remove(pos)
+                if lowered:
+                    if lvocab.index(word) is not None:
+                        lpos = lvocab.index(word)
+                        for pos in lmap[lpos]:
+                            if not self.found[pos] and pos not in lowered_found:
+                                lowered_found.add(pos)
+                                self.mat[pos] = vec
+        print(f'Found tokens : {sum(self.found)}' )
+        if lowered:
+            print(f'Found on lowering : {len(lowered_found)}')
+            for pos in lowered_found:
+                self.found[pos] = True
+        print(f'Unfound tokens : {len(self.found) - sum(self.found)}')
+
+    @classmethod
+    def train(cls, dataset_files, emb_dim, min_freq=10, epochs=5):
+        from gensim.models.fasttext import FastText
+        model = FastText(sg=1, size=emb_dim, min_count=min_freq)
+        with FileReader.get_liness(dataset_files) as reader:
+            model.build_vocab(sentences = reader)
+            model.train(sentences=reader, total_examples=model.corpus_count, epochs=epochs)
+        return model    
+
+    @classmethod
+    def generate(cls, model_path, vocab):
+        import fasttext
+        emb = Embeddings('none', vocab)
+        ft = fasttext.load_model(str(model_path))
+        for pos, token in enumerate(vocab):
+            self.mat[pos] = ft.get_word_vector(token.name)
+            self.found[pos] = True
+        return emb
+
+    def add_model(self, model, model_type:Union['fasttext' or 'mimick'] = 'fasttext'):
+        if model_type == 'fasttext':
+            self.ft_model = model
+        elif model_type == 'mimick':
+            self.mk_model = model
