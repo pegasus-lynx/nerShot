@@ -1,4 +1,6 @@
 import copy
+from typing import List, Dict
+from lib.tokenizer import Reserved
 
 class Formatter(object):
 
@@ -62,7 +64,7 @@ class Converter(object):
         return np.asarray(mat)
 
     @classmethod
-    def list2tensor(cls, mat, gpu:int:-1, requires_grad:bool=False):
+    def list2tensor(cls, mat, gpu:int=-1, requires_grad:bool=False):
         nmat = cls.list2numpy(mat)
         tmat = torch.from_numpy(mat).long()
         if requires_grad:
@@ -83,13 +85,18 @@ class Padder(object):
             padshape = cls.get_padshape(mat, dim)
 
         if dim == 1:
-            mat.extend([pad_idx for _ in range(padshape[0]-len(mat))])
+            if padshape[0] <= len(mat):
+                mat = mat[:padshape[0]]
+            else:
+                mat.extend([pad_idx for _ in range(padshape[0]-len(mat))])
             return mat
         
         for p, x in enumerate(mat):
             mat[p] = cls.pad(x,dim-1, pad_idx, padshape=padshape[1:])
         if len(mat) < padshape[0]:
             mat.append(cls._make_empty(dim-1, padshape[1:], pad_idx))
+        else:
+            mat = mat[:padshape[0]]
         return mat
 
     @classmethod

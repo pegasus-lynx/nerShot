@@ -2,6 +2,7 @@ import random
 import math
 import json
 from pathlib import Path
+from typing import Dict
 from collections import Counter, OrderedDict
 from typing import Iterable, Iterator, List, Tuple, Union
 from .functionals import Formatter as Fr
@@ -63,12 +64,12 @@ class Dataset(object):
         self.dims = meta.dims
 
     def format(self, row=None, index:int=-1):
-        if row is None
+        if row is None:
             try:
                 row = self._get_row(index)
             except Exception:
                 return ''
-        parts = [Fr.format(cell, self.dims[key]) for key, cell in zip(self.keys, row)]
+        parts = [Fr.format(cell, self.dims[key]-1, modifier=str) for key, cell in zip(self.keys, row)]
         return '\t'.join(parts)
 
     def parse(self, line):
@@ -88,11 +89,23 @@ class Dataset(object):
             self.cols[key].append(data_point)
 
     def add(self, dataset):
-        if not self._validate_keys(dataset.keys)
+        if not self._validate_keys(dataset.keys):
             print('Keys don\'t match')
             return
         for row in dataset:
             self.append(row)
+
+    def read(self, filenames):
+        for key in filenames.keys():
+            assert key in self.keys        
+        for key, filename in filenames.items():
+            fr = open(filename, 'r')
+            lines = fr.readlines()
+            for line in lines:
+                line = line.strip()
+                self.cols[key].append(line.split())
+            self.length = len(self.cols[key])
+            fr.close()
 
     def add_bos(self, key, vocab, add_type:str='token'):
         # Supports addition for 1D lists only
@@ -141,7 +154,7 @@ class Dataset(object):
             meta = dataset._get_meta()
             fw.write(f'#{json.dumps(meta)}\n')
             for row in dataset:
-                fw.write(f'{cls.format(row=row)}\n')
+                fw.write(f'{dataset.format(row=row)}\n')
 
 
 class Batch(object):
@@ -213,7 +226,7 @@ class BatchIterable(object):
         yield Batch(mats, self.keys, self.dataset.dims, self.schema, gpu=self.gpu)
 
     def __len__(self):
-        return int(math.ceil(len(self.dataset / self.batch_size)))
+        return int(math.ceil(len(self.dataset) / self.batch_size))
 
     def set_schema(self, schema):
         keys = schema.get_keys()
@@ -223,7 +236,7 @@ class BatchIterable(object):
                 return
         self.schema = schema    
 
-    def set_indexers(self, dataset_key:str, vocab):
+    def set_indexer(self, dataset_key:str, vocab):
         if dataset_key not in self.keys:
             return
         self.vocabs[dataset_key] = vocab
@@ -240,18 +253,25 @@ class BatchIterable(object):
 
     def index(self):
         for key in self.keys:
-            assert key not in self.indexers.keys():
+            assert key in self.vocabs.keys()
         if self.indexed:
             return
         keys = self.keys
-        indexed_dataset = Dataset(keys, dims=self.dataset.dims)
-        for row in self.dataset:
-            irow = []
+        dims = self.dataset.dims
+        for p, row in enumerate(self.dataset):
+            # irow = []
             for key, cell in zip(keys, row):
-                icell = Ir.index(cell, self.vocabs[key])
-                irow.append(icell)
-            indexed_dataset.append(irow)
-        self.dataset = indexed_dataset
+                self.dataset.cols[key][p] = Ir.index(cell, dims[key]-1, self.vocabs[key])
+                # irow.append(icell)
+            # print('----------')
+            # print(row)
+            # print(irow)
+            # print('-----------')
+            # indexed_dataset.append(irow)
+        # print(len(self.dataset))
+        # print(len(indexed_dataset))
+        # self.dataset = indexed_dataset
+        # print(len(self.dataset))
         return
 
     def pad(self, padshapes:Dict[str,int], pad_idx:int=0):
@@ -261,7 +281,7 @@ class BatchIterable(object):
         dims = self.dataset.dims
         for p, row in enumerate(self.dataset):
             for key, cell in zip(self.keys, row):
-                self.dataset.cols[key][p] = Pd.pad(cell, dims[key], pad_idx, padshapes[key])
+                self.dataset.cols[key][p] = Pd.pad(cell, dims[key]-1, pad_idx, padshapes[key])
         
     def _permute(self):
         permutation = random.sample([x for x in range(len(self))], len(self))

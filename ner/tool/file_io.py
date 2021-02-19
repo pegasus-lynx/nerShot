@@ -1,4 +1,12 @@
 from pathlib import Path
+from typing import List, Union
+from __init__ import yaml
+
+def load_conf(inp: Union[str, Path]):
+    fr = open(inp, 'r')
+    config = yaml.load(fr)
+    fr.close()
+    return config
 
 def get_unique(filepaths):
     flat = set()
@@ -17,14 +25,16 @@ class FileReader:
         if 'b' in self.mode:
             self.fd = self.path.open(self.mode)
         else:
-            self.fd = self.path.open(self.mode, encoding=self.encoding)
+            self.fd = self.path.open(self.mode)
         return self.fd
 
-    def __exit__(self):
+    def __exit__(self, exc_type, exc_value, tb):
         self.fd.close()
 
     @classmethod
-    def get_lines(cls, path, col=0, delim='\t', line_mapper=None, newline_fix=True):
+    def get_lines(cls, path:Path, col=0, delim='\t', line_mapper=None, newline_fix=True):
+        if type(path) == str:
+            path = Path(path)
         with cls(path) as inp:
             if newline_fix and delim != '\r':
                 inp = (line.replace('\r', '') for line in inp)
@@ -106,7 +116,7 @@ class MetaWriter(FileWriter):
         self.newline()
         self.indent -= 1
 
-    def section(self, heading:str, lines:List):
+    def section(self, heading:str, lines:List[str]):
         self.sectionstart(heading)
         self.textlines(lines)
         self.sectionclose()

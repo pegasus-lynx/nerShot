@@ -5,21 +5,24 @@ from typing import List, Union
 from tqdm import tqdm
 from collections import Counter
 
-from nlcodec import Type, learn_vocab, load_scheme, term_freq, Reseved
-from .misc import Filepath, FileReader, FileWriter, get_now, log
-from ..tool.file_io import FileReader
+import numpy as np
+from nlcodec import Type, learn_vocab, load_scheme, term_freq
+from tool.file_io import FileReader, get_unique
+from lib.tokenizer import Reserved
 
 class Token(object):
     def __init__(self, name, freq:int=0, idx:int=-1, level:int=2, kids=None):
         self.name = name
-        self.freq = freq,
+        self.freq = freq
         self.idx = idx
         self.level = level
         self.kids = kids
 
     def format(self):
-        cols = [idx, name, level, freq]
+        cols = [str(self.idx), self.name, str(self.level), str(self.freq)]
         if self.kids is not None:
+            kids = self.kids.strip().split()
+            kids = [str(x) for x in kids]
             kids = ' '.join(self.kids)
             cols.append(kids)
         return '\t'.join(cols)
@@ -30,7 +33,7 @@ class Vocabs(object):
         self.token2id = dict()
         self.id2pos = dict()
         self.table = []
-        self.max_index = 0
+        self.max_index = -1
 
         self.reserved = dict()
         if add_reserved is not None:
@@ -41,19 +44,23 @@ class Vocabs(object):
 
     def __iter__(self):
         curr_index = 0
-        while curr_index < self.max_index:
+        if self.max_index < 0:
+            return
+        while curr_index <= self.max_index:
             yield self.table[curr_index]
             curr_index += 1
 
     @classmethod
     def save(cls, vocab, save_file):
+        # Fixed
         with open(save_file, 'w') as fw:
             for token in vocab:
                 fw.write(f'{token.format()}\n')
 
     def index(self, token:str):
-        if word not in self.tokens:
-            return -1
+        # Fixed
+        if token not in self.tokens:
+            return None
         return self.token2id[token]
 
     def token(self, index:int):
@@ -137,10 +144,12 @@ class Vocabs(object):
         vcb = cls()
         with open(vocab_file, 'r') as fr:
             for line in fr:
+                line = line.strip()
                 if line.startswith('#'):
                     continue
                 cols = line.split('\t')
                 idx, name, level, freq = cols[:4]
+                idx, level, freq = [int(x) for x in [idx, level, freq]]
                 kids = None
                 if len(cols) > 4:
                     kids = cols[4].split(' ')
@@ -189,7 +198,7 @@ class Vocabs(object):
 
 class Embeddings(object):
     
-    def __init__(self):
+    def __init__(self, vocab=None, emb_dim:int=300, emb_file=None, ft_model=None):
         self.emb_file = emb_file if type(emb_file) == Path else Path(emb_file)
         self.emb_dim = emb_dim
         self.mat = None
@@ -200,7 +209,7 @@ class Embeddings(object):
             self.mat = np.zeros((len(vocab), self.emb_dim), dtype=np.float64)
 
         # Models for generating embeddings : FastText, Mimick
-        self.ft_model = None
+        self.ft_model = ft_model
         self.mk_model = None
 
     @property
@@ -226,7 +235,7 @@ class Embeddings(object):
         if not is_expanded:
             with np.load(in_file) as data:
                 return data["embeddings"]
-        emb = cls(in_file)
+        emb = cls(emb_file=in_file)
         emb._build()
         return emb  
 

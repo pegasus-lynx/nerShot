@@ -5,7 +5,7 @@ __author__ = "Dipesh Kumar"
 import json
 import re
 from collections import Counter
-from typing import List, Union
+from typing import List, Union, Dict
 
 from indicnlp.normalize.indic_normalize import IndicNormalizerFactory
 from indicnlp.tokenize import indic_tokenize, sentence_tokenize
@@ -77,7 +77,7 @@ class CharTokens(object):
         return text in cls.symbols
 
     @classmethod
-    def check_lang(cls, text, lang=None:Union[str,List[str]]):
+    def check_lang(cls, text, lang=None):
         if len(text) != 1:
             return None
 
@@ -141,7 +141,7 @@ class Reserved(object):
 
     @classmethod
     def _all_ner(cls):
-        return [PAD_TOK[0]]
+        return [cls.PAD_TOK[0]]
 
     @classmethod
     def validate(cls, word):
@@ -198,7 +198,7 @@ class Masker(object):
         'date': [
             "^[0-9]{4} ?[-/.] ?[0-9]{1,2} ?[-/.] ?[0-9]{1,2}$",
             "^[0-9]{1,2} ?[-/.] ?[0-9]{1,2} ?[-/.] ?[0-9]{4}$"
-        ]
+        ],
         'alf': [
             ".*[0-9]+.*[a-zA-Z]*.*",
             ".*[a-zA-Z]*.*[0-9]+.*"

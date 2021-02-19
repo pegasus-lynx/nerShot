@@ -1,0 +1,35 @@
+vocabs:
+  include_chars: false
+  include_subwords: false
+  max_word_tokens: 30000
+  max_subword_tokens: 8000
+  corpus_files:
+  - ./train.seqs.txt
+  - ./dev.seqs.txt
+embedding:
+  word:
+    dim: 300
+    pretrained_file: ./cc.en300.vec
+    lowered: true
+    # pretrained_model: 
+  # subword:
+  #   text_file: ./subword.en.vec
+    # model_file:
+tags:
+  corpus_files:
+  - ./train.tags.txt
+  - ./dev.tags.txt
+data:
+  max_seq_len: 64
+  max_word_len: 20
+  truncate: true
+  train_seqs: ./train.seqs.txt
+  train_tags: ./train.tags.txt
+  valid_seqs: ./dev.seqs.txt
+  valid_tags: ./dev.tags.txt
+test:
+  suit:
+    test:
+    - ./test.seqs.txt
+    - ./test.tags.txt
+-
