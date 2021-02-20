@@ -30,7 +30,7 @@ class BiLSTMLayer(AbstractRNNLayer):
         if self.sort_batch:
             inp_packed, rev_sort_index = self.pack_sorted(inp_tensor, mask_tensor)
             out_packed, states = self.rnn(inp_packed, (h0, c0))
-            out_tensor = self.unpack_sorted(out_tensor, seq_len, rev_sort_index)
+            out_tensor = self.unpack_sorted(out_packed, seq_len, rev_sort_index)
         else:
             inp_packed = self.pack(inp_tensor, mask_tensor)
             out_packed, states = self.rnn(inp_packed, (h0, c0))

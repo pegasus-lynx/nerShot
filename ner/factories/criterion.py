@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from ..layers.csim_loss import CosineSim
+from layers.csim_loss import CosineSim
 
 class CriterionFactory():
 

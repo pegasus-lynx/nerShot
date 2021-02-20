@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from ner.layers.abstract.base import AbstractLayer
+from layers.abstract.base import AbstractLayer
 
 class CRFLayer(AbstractLayer):
     def __init__(self, gpu, nstates:int, pad_idx, sos_idx, tag_vocab):
@@ -66,7 +66,7 @@ class CRFLayer(AbstractLayer):
         batch_size, max_seq_len = mask_tensor.shape
         score = self.set_device(torch.zeros(batch_size, dtype=torch.float))
         start_tags = self.set_device(torch.zeros(batch_size, 1, dtype=torch.long).fill_(self.sos_idx))
-        tag_seqs = torch.cat(start_tags, tag_seqs], 1)
+        tag_seqs = torch.cat([start_tags, tag_seqs], 1)
         for n in range(max_seq_len):
             curr_mask = mask_tensor[:, n]
             curr_emms = self.set_device(torch.zeros(batch_size, dtype=torch.float))

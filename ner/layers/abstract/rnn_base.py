@@ -21,7 +21,7 @@ class AbstractRNNLayer(AbstractLayer):
     def unpack_sorted(self, out_packed, max_seq_len, rev_sort_index):
         sorted_out_tensor, _ = pad_packed_sequence(out_packed, batch_first=True, 
                                             total_length=max_seq_len)
-        out_tensor = torch.index_select(sorted_out_tensor, index=rev_sort_index)
+        out_tensor = torch.index_select(sorted_out_tensor, dim=0, index=rev_sort_index)
         return out_tensor
 
     def pack(self, inp_tensor, mask_tensor):

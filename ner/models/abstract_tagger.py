@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from ..factories.activation import ActivationFactory
-from ..factories.criterion import CriterionFactory
+from factories.activation import ActivationFactory
+from factories.criterion import CriterionFactory
 
 class TaggerSchema():
 
@@ -70,6 +70,7 @@ class TaggerSchema():
 class AbstractNERTagger(nn.Module):
 
     def __init__(self, gpu, ntags:int, nwords:int, activation_type='gelu', criterion_type='nll'):
+        super(AbstractNERTagger, self).__init__()
         self.gpu = gpu
         self.ntags = ntags
         self.act_layer = ActivationFactory.create(activation_type)
@@ -102,9 +103,11 @@ class AbstractNERTagger(nn.Module):
         torch.save(self, checkpoint_fn)
         self.set_device_()  
 
-    def make_mask(self, word_seq):
-        dim = len(word_seq.shape)
-        mask = self.set_device()
+    def make_mask(self, word_seqs):
+        dim = len(word_seqs.shape)
+        shape = word_seqs.shape
+        mask = self.set_device(word_seqs != 0) 
+        mask = mask.float()           
         return mask
 
     def apply_mask(self, inp_tensor, mask_tensor):

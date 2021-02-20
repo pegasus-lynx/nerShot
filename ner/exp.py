@@ -9,13 +9,14 @@ import time
 import numpy as np
 import torch
 
-from ner import log, yaml
+from __init__ import log, yaml
 from tool.file_io import FileReader, FileWriter
-from lib.vocabs import Vocabs
+from lib.vocabs import Vocabs, Embeddings
 from lib.dataset import Dataset, Batch, BatchIterable
 from factories import CriterionFactory, OptimizerFactory, ModelFactory
 from models import ModelRegistry
 from utils.states import TrainerState, EarlyStopper
+from tool.file_io import load_conf
 
 class BaseExperiment(object):
     def __init__(self, work_dir, config=None):
@@ -222,18 +223,18 @@ class NERTaggingExperiment(BaseExperiment):
         if type(work_dir) is str:
             work_dir = Path(work_dir)
 
-        self._word_vocab_file = work_dir / Path('word.vocab')
-        self._subword_vocab_file = work_dir / Path('subword.vocab')
-        self._char_vocab_file = work_dir / Path('char.vocab')
-        self._tag_vocab_file = word_dir / Path('tag.vocab')
+        self._word_vocab_file = self.data_dir / Path('word.vocab')
+        self._subword_vocab_file = self.data_dir / Path('subword.vocab')
+        self._char_vocab_file = self.data_dir / Path('char.vocab')
+        self._tag_vocab_file = self.data_dir / Path('tag.vocab')
 
-        self._word_emb_file = work_dir / Path('word.emb.npz')
-        self._subword_emb_file = work_dir / Path('subword.emb.npz')
+        self._word_emb_file = self.data_dir / Path('word.emb.npz')
+        self._subword_emb_file = self.data_dir / Path('subword.emb.npz')
 
-        self._train_dataset_file = work_dir / Path('train.tsv')
-        self._valid_dataset_file = work_dir / Path('valid.tsv')
+        self._train_dataset_file = self.data_dir / Path('train.tsv')
+        self._valid_dataset_file = self.data_dir / Path('valid.tsv')
 
-        self.schema = ModelRegistry.schemas[self.model_name]
+        self.schema = ModelRegistry.schemas[self.model_name]()
 
         self.model = None
         self.optimizer = None
@@ -259,7 +260,7 @@ class NERTaggingExperiment(BaseExperiment):
             return
 
         if last_step < train_steps:
-            stopped = self.trainer(**run_args)
+            stopped = self.trainer(**train_args)
             status = dict(steps=train_steps, early_stopped=stopped)
             yaml.dump(status, stream=self._trained_flag)
 
@@ -267,7 +268,7 @@ class NERTaggingExperiment(BaseExperiment):
         self.train_state = TrainerState(len(self.train_loader), 
                                         check_point, self.last_step)
         eargs = args.get('early_stop', {})
-        self.stopper = EarlyStopper(cur_step=self.last_step, **eargs)
+        self.stopper = EarlyStopper(cur_steps=self.last_step, **eargs)
         unsaved_state = False
         early_stopped = False
         for step in range(self.last_step+1, steps):
@@ -296,9 +297,10 @@ class NERTaggingExperiment(BaseExperiment):
     def _train(self):
         self.train_mode(True)
         for p, batch in enumerate(self.train_loader):
-            outs, loss = self.model(*batch)    
+            outs, loss = self.model(*batch.forward)
+            labels = batch.labels[0]
             if loss is None:
-                loss = self.criterion(outs.view(-1, self.ntags), 
+                loss = self.criterion(outs.view(-1, self.model.ntags), 
                                         labels.view(-1))
             loss.backward()
             self.optimizer.step()
@@ -313,7 +315,7 @@ class NERTaggingExperiment(BaseExperiment):
         val_outs = []
         with torch.no_grad():
             for p, batch in enumerate(self.valid_loader):
-                outs, loss = self.model(*batch)
+                outs, loss = self.model(*batch.forward)
                 if loss is None:
                     loss = self.criterion(outs.view(-1, self.ntags), 
                                             labels.view(-1))
@@ -346,7 +348,7 @@ class NERTaggingExperiment(BaseExperiment):
         train_dataset, valid_dataset = [
             Dataset.load(f) if f.exists() else None for f in (
                 self._train_dataset_file, self._valid_dataset_file)]
-        
+
         batch_size = self.config['trainer'].get('batch_size', 32)
         log.info('Making dataloaders ...')
         self.train_loader = BatchIterable(train_dataset, schema=self.schema, batch_size=batch_size, 
@@ -362,8 +364,10 @@ class NERTaggingExperiment(BaseExperiment):
         self.model = ModelFactory.create_tagger(model_name, 
                                                 self.model_args, 
                                                 gpu=self.gpu)
-        self.optimizer = OptimizerFactory.create(self.optim_args, self.model)
-        self.criterion = CriterionFactory.create(self.optim_args['criterion'])
+
+        _, opt_args = self.optim_args
+        self.optimizer, self.scheduler = OptimizerFactory.create(self.optim_args, self.model)
+        self.criterion = CriterionFactory.create(opt_args['criterion'])
         self.last_step = 0
 
         last_model, self.last_step = self.get_last_saved_model()
@@ -382,7 +386,10 @@ class NERTaggingExperiment(BaseExperiment):
             log.info("No earlier check point found. Looks like this is a fresh start")
 
     def load_embeddings(self):
-        pass
+        if self._word_emb_file.exists():
+            self.word_emb = Embeddings.load(self._word_emb_file)
+        if self._subword_emb_file.exists():
+            self.subword_emb = Embeddings.load(self._subword_emb_file)
 
     def make_check_point(self, train_loss, valid_loss, keep:int=5):
         step_num = self.last_step

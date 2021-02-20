@@ -1,4 +1,4 @@
-from ..models import ModelRegistry
+from models import ModelRegistry
 
 
 class ModelFactory(object):
@@ -12,7 +12,7 @@ class ModelFactory(object):
                                                 args['ntags'], args['nwords'], 
                                                 args['word_emb_dim'],
                                                 args['word_rnn_hid_dim'], 
-                                                word_emb_mat = kwargs.get('word_emb_mat', None)
+                                                word_emb_mat = kwargs.get('word_emb_mat', None),
                                                 activation_type = args.get('activation', 'gelu'),
                                                 rnn_type = args.get('rnn_type', 'lstm'),
                                                 drop_ratio = args.get('dropout', 0))
@@ -25,7 +25,7 @@ class ModelFactory(object):
                                                 args['ntags'], args['nwords'], 
                                                 args['word_emb_dim'],
                                                 args['word_rnn_hid_dim'], 
-                                                word_emb_mat = kwargs.get('word_emb_mat', None)
+                                                word_emb_mat = kwargs.get('word_emb_mat', None),
                                                 activation_type = args.get('activation', 'gelu'),
                                                 rnn_type = args.get('rnn_type', 'lstm'),
                                                 drop_ratio = args.get('dropout', 0))

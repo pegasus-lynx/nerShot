@@ -1,6 +1,8 @@
 import copy
 from typing import List, Dict
 from lib.tokenizer import Reserved
+import numpy as np
+import torch
 
 class Formatter(object):
 
@@ -16,7 +18,7 @@ class Formatter(object):
         return cls.seps[dim].join(cell)
 
     @classmethod
-    def parse(text:str, dim:int, modifier=None):
+    def parse(cls, text:str, dim:int, modifier=None):
         if dim==1:
             splits = text.split(cls.seps[dim])
             if modifier:
@@ -60,13 +62,18 @@ class Indexer(object):
 class Converter(object):
 
     @classmethod
-    def list2numpy(cls, mat):
-        return np.asarray(mat)
+    def list2numpy(cls, mat, dtype='long'):
+        mat = np.asarray(mat)
+        if dtype == 'long':
+            mat = mat.astype(np.long)
+        else:
+            mat = mat.astype(np.float)
+        return mat
 
     @classmethod
     def list2tensor(cls, mat, gpu:int=-1, requires_grad:bool=False):
         nmat = cls.list2numpy(mat)
-        tmat = torch.from_numpy(mat).long()
+        tmat = torch.from_numpy(nmat).long()
         if requires_grad:
             tmat.requires_grad_ = True
         if gpu >=0:

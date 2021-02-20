@@ -24,7 +24,7 @@ class Dataset(object):
 
 
     def __len__(self):
-        return self.length
+        return len(self.cols[self.keys[0]])
 
     def __iter__(self):
         curr_index = 0
@@ -77,7 +77,7 @@ class Dataset(object):
         row = []
         for key, col in zip(self.keys, cols):
             dim = self.dims[key]
-            row.append(Fr.parse(col, dim))
+            row.append(Fr.parse(col, dim-1))
         return row
 
     def append(self, data_row):
@@ -141,10 +141,10 @@ class Dataset(object):
         fr = open(data_file, 'r')
         line = fr.readline()
         line = line.strip()[1:]
-        meta = json.load(line)
-        dataset = Dataset(meta.keys, meta.dims)
+        meta = json.loads(line)
+        dataset = Dataset(meta.get('keys'), dims=meta.get('dims'))
         for line in fr:
-            row = cls.parse(line)
+            row = dataset.parse(line)
             dataset.append(row)
         return dataset
 
@@ -168,19 +168,19 @@ class Batch(object):
 
     @property
     def forward(self):
-        return [self.mat[key] for key in self.schema.forward]
+        return [self.mats[key] for key in self.schema.forward]
 
     @property
     def labels(self):
-        return [self.mat[key] for key in self.schema.labels]
+        return [self.mats[key] for key in self.schema.labels]
 
     @property
     def get_loss(self):
-        return [self.mat[key] for key in self.schema.get_loss]
+        return [self.mats[key] for key in self.schema.get_loss]
 
     @property
     def predict(self):
-        return [self.mat[key] for key in self.schema.predict]
+        return [self.mats[key] for key in self.schema.predict]
 
     def process(self, mat, gpu:int=-1):
         mat = Cr.list2tensor(mat, gpu)
@@ -203,7 +203,7 @@ class BatchIterable(object):
             self.permuation = self._permute()
 
         self.gpu = gpu
-        self.schema = None
+        self.schema = schema
         self.indexed = indexed
         self.vocabs = dict()
 
@@ -259,19 +259,8 @@ class BatchIterable(object):
         keys = self.keys
         dims = self.dataset.dims
         for p, row in enumerate(self.dataset):
-            # irow = []
             for key, cell in zip(keys, row):
                 self.dataset.cols[key][p] = Ir.index(cell, dims[key]-1, self.vocabs[key])
-                # irow.append(icell)
-            # print('----------')
-            # print(row)
-            # print(irow)
-            # print('-----------')
-            # indexed_dataset.append(irow)
-        # print(len(self.dataset))
-        # print(len(indexed_dataset))
-        # self.dataset = indexed_dataset
-        # print(len(self.dataset))
         return
 
     def pad(self, padshapes:Dict[str,int], pad_idx:int=0):

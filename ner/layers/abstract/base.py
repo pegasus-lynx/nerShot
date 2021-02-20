@@ -3,7 +3,7 @@ import torch.nn as nn
 class AbstractLayer(nn.Module):
     """Abstract base class for all type of layers."""
     def __init__(self, gpu):
-        super(LayerBase, self).__init__()
+        super(AbstractLayer, self).__init__()
         self.gpu = gpu
 
     def set_device(self, tensor):

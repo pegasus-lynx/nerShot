@@ -36,14 +36,14 @@ class TrainerState(object):
     def progress_bar_msg(self):
         elapsed = time.time() - self.start
         return f'Loss:{self.running_loss():.4f},' \
-               f' {int(self.total_toks / elapsed)}toks/s'
+               f' {int(self.nbatches / elapsed)}bats/s'
 
     def is_check_point(self):
         return self.steps == self.check_point
 
 class EarlyStopper:
     
-    def __init__(self, enabled:bool=True, by:str='loss', patience:int=5
+    def __init__(self, enabled:bool=True, by:str='loss', patience:int=5,
                 min_steps:int=10, cur_steps:int=0, buf:int=2):
         self.enabled = enabled
         self.by = by
