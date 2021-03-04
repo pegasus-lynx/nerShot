@@ -1,7 +1,12 @@
 model_name: birnn
 model_args:
   nwords: 30000
+  # nchars :
+  # nsubwords :
   ntags : 18
+  # word_len : 20
+  # subword_len : 5
+  # seq_len : 64
   rnn_type: lstm
   word_emb_dim: 300
   word_rnn_hid_dim: 300
@@ -32,15 +37,13 @@ trainer:
     patience: 4
     min_steps: 10
     by: loss
-prep:
-  max_word_tokens: 30000
-  char_vocab: true
-  subword_vocab: true
-  seq_len: 64
-  # word_len: 20
-  truncate: true
-  train_seqs: ./train.seqs.txt
-  train_tags: ./train.tags.txt
-  valid_seqs: ./dev.seqs.txt
-  valid_tags: ./dev.tags.txt
+tester:
+  beam_size: 5
+  ensemble: 5
+  suits:
+    test:
+    - ./test.seqs.txt
+    - ./test.tags.txt
+  # files:
+  #   - ./dev.seqs.txt
 seed: 1729

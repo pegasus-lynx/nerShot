@@ -16,6 +16,8 @@ yaml = YAML()
 from typing import List, Union, Dict
 from pathlib import Path
 
+
+# Defined General Types
 FileType = Union[str, Path]
 FileList = List[FileType]
 FileDict = Dict[str,FileType]
