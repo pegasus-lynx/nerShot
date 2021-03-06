@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from layers.abstract.base import AbstractLayer
+from ner.layers.abstract.base import AbstractLayer
 
 class CharCNN(AbstractLayer):
     def __init__(self, gpu, char_emb_dim:int, word_len:int, nfilters:int, kernel_size:int, word_len:int, pad_typr:str='same'):

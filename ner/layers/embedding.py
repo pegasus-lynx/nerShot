@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from layers.abstract.base import AbstractLayer
+from ner.layers.abstract.base import AbstractLayer
 
 class EmbeddingLayer(AbstractLayer):
     def __init__(self, gpu, emb_dim:int, vocab_size:int, padding_idx:int=0, pretrained_mat=None, requires_grad:bool=False):

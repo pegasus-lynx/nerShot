@@ -31,7 +31,7 @@ trainer:
   batch_size: 32
   check_point: 1
   keep_models: 5
-  steps: 100
+  steps: 10
   early_stop:
     enabled: True
     patience: 4

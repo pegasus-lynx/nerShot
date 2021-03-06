@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from factories.activation import ActivationFactory
-from factories.criterion import CriterionFactory
+from ner.factories.activation import ActivationFactory
+from ner.factories.criterion import CriterionFactory
 
 class TaggerSchema():
 
@@ -18,6 +18,7 @@ class TaggerSchema():
         self.predict_list = []
         self.forward_out_list = []
         self.labels_list = []
+        self.decoder = []
 
     def get_keys(self):
         keys = []
@@ -113,4 +114,6 @@ class AbstractNERTagger(nn.Module):
     def apply_mask(self, inp_tensor, mask_tensor):
         inp_tensor = self.set_device(inp_tensor)
         mask_tensor = self.set_device(mask_tensor)
-        return inp_tensor*mask_tensor.unsqueeze(-1).expand_as(inp_tensor)
+        nmask_tensor = mask_tensor.unsqueeze(-1).expand_as(inp_tensor)
+        # print(nmask_tensor.shape)
+        return inp_tensor*nmask_tensor

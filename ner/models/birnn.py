@@ -1,12 +1,12 @@
 import torch
 import torch.nn as nn
 
-from layers.birnns import BiGRULayer, BiLSTMLayer, BiRNNLayer
-from layers.crf import CRFLayer
-from layers.embedding import EmbeddingLayer
-from models.abstract_tagger import AbstractNERTagger, TaggerSchema
-from factories.activation import ActivationFactory
-from factories.criterion import CriterionFactory
+from ner.layers.birnns import BiGRULayer, BiLSTMLayer, BiRNNLayer
+from ner.layers.crf import CRFLayer
+from ner.layers.embedding import EmbeddingLayer
+from ner.models.abstract_tagger import AbstractNERTagger, TaggerSchema
+from ner.factories.activation import ActivationFactory
+from ner.factories.criterion import CriterionFactory
 
 
 class BiRNNSchema(TaggerSchema):
@@ -17,6 +17,11 @@ class BiRNNSchema(TaggerSchema):
         self.predict_list = ['seqs']
         self.forward_out_list = ['logits']
         self.labels_list = ['tagseqs']
+
+        self.decoder_type = ['greedy']
+        self.include_chars = False
+        self.include_subwords = False
+
 
 class BiRNNTagger(AbstractNERTagger):
 
@@ -50,6 +55,7 @@ class BiRNNTagger(AbstractNERTagger):
         mask = self.make_mask(seqs_tensor)
         rnn_logits = self._forward_encoder(seqs_tensor)
         rnn_logits = self.apply_mask(rnn_logits, mask)
+        # print(rnn_logits.shape)
         return ((rnn_logits), None)
 
     def _forward_encoder(self, seqs_tensor):
@@ -63,6 +69,16 @@ class BiRNNTagger(AbstractNERTagger):
         rnn_logits = self.softmax_layer(rnn_cmp)
         return rnn_logits
 
+    def predict(self, seqs_tensor):
+        self.eval()
+        outs, _ = self.forward(seqs_tensor)
+        rnn_logits = outs[0]
+        # print(rnn_logits.shape)
+        rnn_idx = torch.argmax(rnn_logits, dim=-1)
+        # print(rnn_idx)
+        return rnn_idx
+
+
     def get_loss(self, seqs_tensor, tagseq_tensor, criterion=None):
         mask = self.make_mask(seqs_tensor)
         rnn_logits = self._forward_encoder(seqs_tensor)
@@ -70,13 +86,6 @@ class BiRNNTagger(AbstractNERTagger):
         if criterion is None:
             criterion = self.criterion
         return criterion(rnn_logits, tagseq_tensor)
-
-    def predict(self, seqs_tensor):
-        self.eval()
-        rnn_outs = self._forward_encoder(seqs_tensor)
-        mask = self.make_mask(seqs_tensor)
-        idx_seqs = self.crf_layer.decode_viterbi(rnn_outs, mask)
-        return idx_seqs
 
     def _get_birnn(self, rnn_type):
         if rnn_type == 'gru':

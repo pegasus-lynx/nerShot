@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 
-from ..layers.birnns import BiGRULayer, BiLSTMLayer, BiRNNLayer
-from ..layers.crf import CRFLayer
-from ..layers.embedding import EmbeddingLayer
-from .abstract_tagger import AbstractNERTagger, TaggerSchema
+from ner.layers.birnns import BiGRULayer, BiLSTMLayer, BiRNNLayer
+from ner.layers.crf import CRFLayer
+from ner.layers.embedding import EmbeddingLayer
+from ner.models.abstract_tagger import AbstractNERTagger, TaggerSchema
 
 class BiRNNCRFSchema(TaggerSchema):
     def __init__(self):
@@ -14,6 +14,7 @@ class BiRNNCRFSchema(TaggerSchema):
         self.predict_list = ['seqs']
         self.forward_out_list = ['indexes']
         self.labels_list = ['tagseqs']
+        self.decoder_type = ['crf']
 
 class BiRNNCRFTagger(AbstractNERTagger):
 

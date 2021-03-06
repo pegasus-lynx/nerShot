@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from layers.abstract.rnn_base import AbstractRNNLayer
+from ner.layers.abstract.rnn_base import AbstractRNNLayer
 
 class BiLSTMLayer(AbstractRNNLayer):
     def __init__(self, gpu, inp_dim:int, hid_dim:int, nlayers:int=1, sort_batch:bool=True):

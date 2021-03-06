@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from layers.abstract.base import AbstractLayer
+from ner.layers.abstract.base import AbstractLayer
 
 class CRFLayer(AbstractLayer):
     def __init__(self, gpu, nstates:int, pad_idx, sos_idx, tag_vocab):

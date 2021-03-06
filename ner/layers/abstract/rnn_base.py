@@ -1,6 +1,6 @@
 import torch
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from layers.abstract.base import AbstractLayer
+from ner.layers.abstract.base import AbstractLayer
 
 class AbstractRNNLayer(AbstractLayer):
     def __init__(self, gpu, inp_dim:int, hid_dim:int, nlayers:int, bi_dir:bool=False):

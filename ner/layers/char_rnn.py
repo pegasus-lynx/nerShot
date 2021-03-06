@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from layers.abstract.rnn_base import AbstractRNNLayer
+from ner.layers.abstract.rnn_base import AbstractRNNLayer
 
 class CharBiRNNLayer(AbstractRNNLayer):
     def __init__(self, gpu, emb_dim:int, hid_dim:int, rnn_type:str='lstm' nlayers:int=1, bi_dir:bool=True):
