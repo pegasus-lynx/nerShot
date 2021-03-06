@@ -1,10 +1,11 @@
 import argparse
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
-from exp import NERTaggingExperiment as NerExp
-from preexp import NERPrepper as NerPrep
-from models import ModelRegistry
-from __init__ import log
+from ner.exp import NERTaggingExperiment as NerExp
+from ner.preexp import NERPrepper as NerPrep
+from ner.models import ModelRegistry
+from ner import log
+from ner.decoder import NERDecoder
 
 import torch
 import random
@@ -27,10 +28,21 @@ class Pipeline(object):
     def run(self):
         self.pre_checks()
         self.exp.load()
-        if not self.exp.has_prepared():
-            pass
+        # if not self.exp.has_prepared():
             # self.preprocess()
         self.exp.train_model()
+        self.run_tests()
+
+    def run_tests(self):
+        tester_args = self.config.get('tester')
+        decoder = NERDecoder(self.exp.work_dir, self.config.get('model_name'),
+                            beam_size=tester_args.get('beam_size'), 
+                            ensemble=tester_args.get('ensemble'), gpu=self.exp.gpu)
+        decoder.load()
+        if tester_args.get('files'):
+            decoder.decode_files(tester_args.get('files'))
+        if tester_args.get('suits'):
+            decoder.decode(tester_args.get('suits'))
 
     def preprocess(self):
         work_dir = self.exp.work_dir
@@ -49,7 +61,6 @@ def parse_args():
 
 def main():
     args = parse_args()
-
     if args.gpu >= 0:
         assert torch.cuda.is_available(), 'GPU Parameter passed but no GPU available'
         for i in range(torch.cuda.device_count()):

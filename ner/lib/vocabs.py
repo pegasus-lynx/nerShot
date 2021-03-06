@@ -7,8 +7,9 @@ from collections import Counter
 
 import numpy as np
 from nlcodec import Type, learn_vocab, load_scheme, term_freq
-from tool.file_io import FileReader, get_unique
-from lib.tokenizer import Reserved
+from ner.tool.file_io import FileReader, get_unique
+from ner.lib.tokenizer import Reserved, Masker
+from ner import log
 
 class Token(object):
     def __init__(self, name, freq:int=0, idx:int=-1, level:int=2, kids=None):
@@ -28,13 +29,17 @@ class Token(object):
         return '\t'.join(cols)
 
 class Vocabs(object):
-    def __init__(self, add_reserved:str=None):
+
+    def __init__(self, add_reserved:str=None, filter_tokens:bool=False):
         self.tokens = set()
         self.token2id = dict()
         self.id2pos = dict()
         self.table = []
         self.max_index = -1
 
+        self.masker = Masker()
+
+        self.filter = filter_tokens
         self.reserved = dict()
         if add_reserved is not None:
             self.add_reserved(add_reserved)
@@ -50,15 +55,23 @@ class Vocabs(object):
             yield self.table[curr_index]
             curr_index += 1
 
+    def _get_meta(self):
+        return dict(size=len(self))
+
+    @property
+    def vocabulary(self):
+        return list(self.tokens)
+
     @classmethod
     def save(cls, vocab, save_file):
-        # Fixed
+        log.info(f'Saving vocabs to file : {save_file}')
         with open(save_file, 'w') as fw:
+            meta = vocab._get_meta()
+            fw.write(f'#{json.dumps(meta)}\n')
             for token in vocab:
                 fw.write(f'{token.format()}\n')
 
     def index(self, token:str):
-        # Fixed
         if token not in self.tokens:
             return None
         return self.token2id[token]
@@ -74,9 +87,15 @@ class Vocabs(object):
         return token.name
 
     def append(self, token, force_index=None):
+        if self.filter:
+            name = token.name if isinstance(token, Token) else token
+            ent = self.masker.match(name)
+            if ent and ent != 'res':
+                return 
+
         if isinstance(token, Token):
             self._add_token(token, force_index=force_index)
-        if isinstance(token, str):
+        elif isinstance(token, str):
             self._add_name(token, force_index=force_index)
         return
 
@@ -95,7 +114,7 @@ class Vocabs(object):
         self.max_index += 1
         self.token2id[token.name] = token.idx
         self.table.append(token)
-        self.id2pos[token.idx] = len(self.table)     
+        self.id2pos[token.idx] = len(self.table) - 1   
 
     def _add_name(self, token:str, level:int=2, force_index=None):
         token = Token(token, freq=1, level=level)
@@ -142,6 +161,7 @@ class Vocabs(object):
     @classmethod
     def load(cls, vocab_file):
         vcb = cls()
+        log.info(f'Loading Vocab File : {vocab_file}')
         with open(vocab_file, 'r') as fr:
             for line in fr:
                 line = line.strip()
@@ -154,6 +174,7 @@ class Vocabs(object):
                 if len(cols) > 4:
                     kids = cols[4].split(' ')
                 vcb.append(Token(name, freq=freq, idx=idx, level=level, kids=kids))
+        log.info(f'Loaded {len(vcb)} toks from the file')
         return vcb
 
     @classmethod
@@ -321,6 +342,40 @@ class Embeddings(object):
             for pos in lowered_found:
                 self.found[pos] = True
         print(f'Unfound tokens : {len(self.found) - sum(self.found)}')
+
+    def set_random(self, tokens:List[Union[str,int]]):
+        for token in tokens:
+            if isinstance(token, str):
+                index = self.vocabs.index(token)
+            else:
+                index = token
+            if self.found[index]:
+                continue
+            self.mat[index] = self._get_random()
+            self.found[index] = True
+
+    def set_reserved(self):
+        for p, token in enumerate(self.vocab):
+            if self.found[p]:
+                continue
+            if token.level == -1:
+                self.found[p] = True
+                self.mat[p] = self._get_random()
+
+    def set_ents(self):
+        keys = self.masker.regex.keys()
+        embs = { key: self._get_random() for key in keys}
+
+        for p, token in enumerate(self.vocabs):
+            if self.found[p]:
+                continue
+            ent = self.masker.match(token.name)
+            if ent in keys:
+                self.found[p] = True
+                self.mat[p] = embs[ent]
+
+    def _get_random(self):
+        return np.random.randn(1, self.emb_dim) * ( 1 if not normalize else (1/np.sqrt(self.emb_dim)))
 
     @classmethod
     def train(cls, dataset_files, emb_dim, min_freq=10, epochs=5):

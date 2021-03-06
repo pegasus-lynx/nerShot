@@ -1,6 +1,6 @@
 import copy
 from typing import List, Dict
-from lib.tokenizer import Reserved
+from ner.lib.tokenizer import Reserved
 import numpy as np
 import torch
 

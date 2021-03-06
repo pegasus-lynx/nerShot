@@ -22,13 +22,12 @@ class Dataset(object):
         if dims is not None:
             self._set_dims(dims)
 
-
     def __len__(self):
         return len(self.cols[self.keys[0]])
 
     def __iter__(self):
         curr_index = 0
-        while curr_index < self.length:
+        while curr_index < len(self):
             yield self._get_row(curr_index)
             curr_index += 1
 
@@ -146,6 +145,7 @@ class Dataset(object):
         for line in fr:
             row = dataset.parse(line)
             dataset.append(row)
+        fr.close()
         return dataset
 
     @classmethod
@@ -273,5 +273,5 @@ class BatchIterable(object):
                 self.dataset.cols[key][p] = Pd.pad(cell, dims[key]-1, pad_idx, padshapes[key])
         
     def _permute(self):
-        permutation = random.sample([x for x in range(len(self))], len(self))
+        permutation = random.sample([x for x in range(len(self.dataset))], len(self.dataset))
         return permutation 

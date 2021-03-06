@@ -4,7 +4,12 @@
 # Created: 3/9/19
 import logging
 import os
+from datetime import datetime
 
+def _get_now():
+    datetime_str = datetime.now().isoformat().replace('T', '_')
+    pos = datetime_str.index('.')
+    return datetime_str[:pos]
 
 class Logger(logging.Logger):
 

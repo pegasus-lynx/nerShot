@@ -49,7 +49,6 @@ def parse_args():
     parser.add_argument('-g', '--gpu', type=int, default=-1)
     return parser.parse_args()
 
-
 def main():
     args = parse_args()
     if args.gpu >= 0:

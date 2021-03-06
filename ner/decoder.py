@@ -1,8 +1,10 @@
 from pathlib import Path
+from sklearn.metrics import precision_recall_fscore_support
+# from sklear
+import torch
+import hashlib
 
-from sklearn import precision_recall_fscore_support
-
-from ner import FileType
+from ner import FileType, log
 from ner.factories.criterion import CriterionFactory
 from ner.factories.model import ModelFactory, ModelRegistry
 from ner.lib.dataset import Dataset
@@ -50,7 +52,7 @@ class BaseDecoder(object):
             'device': self.device
         }
 
-    def load(self):
+    def load(self, model_name=None, model=None, model_args=None):
         if not model_name:
             model_name = self.config['model_name']
             self.model_name = model_name
@@ -59,6 +61,7 @@ class BaseDecoder(object):
             model_args = self.config['model_args']
         if model is None:
             model = ModelFactory.create_tagger(model_name, model_args, gpu=self.gpu)
+            model_paths = list(self.model_dir.glob('model_*.pkl'))
             state = BaseDecoder.maybe_ensemble_state(model_paths, self.ensemble, device=self.device)
             model.load_state_dict(state)
             log.info('Successfully restored the model state')    
@@ -83,20 +86,21 @@ class BaseDecoder(object):
     def maybe_ensemble_state(model_paths, ensemble:int=1, device:str='cpu'):
         if len(model_paths) == 1:
             log.info(f" Restoring state from requested model {model_paths[0]}")
-            return Decoder._checkpt_to_model_state(model_paths[0], device=device)
+            return BaseDecoder._ckpt_to_model_state(model_paths[0], device=device)
         elif ensemble <= 1:
             model_path = model_paths[0]
             log.info(f" Restoring state from best known model: {model_path}")
-            return Decoder._checkpt_to_model_state(model_path, device=device)
+            return BaseDecoder._ckpt_to_model_state(model_path, device=device)
         else:
             digest = hashlib.md5(";".join(str(p) for p in model_paths).encode('utf-8')).hexdigest()
-            cache_file = exp.model_dir / f'avg_state{len(model_paths)}_{digest}.pkl'
+            model_dir = model_paths[0].parent
+            cache_file = model_dir / f'avg_state{len(model_paths)}_{digest}.pkl'
             if cache_file.exists():
                 log.info(f"Cache exists: reading from {cache_file}")
-                state = Decoder._checkpt_to_model_state(cache_file, device=device)
+                state = BaseDecoder._ckpt_to_model_state(cache_file, device=device)
             else:
                 log.info(f"Averaging {len(model_paths)} model states :: {model_paths}")
-                state = Decoder.average_states(model_paths)
+                state = BaseDecoder.average_states(model_paths)
                 if len(model_paths) > 1:
                     log.info(f"Caching the averaged state at {cache_file}")
                     torch.save(state, str(cache_file))
@@ -129,13 +133,13 @@ class BaseDecoder(object):
                 pass
         fw.close()
 
-class NERDecoder(object):
+class NERDecoder(BaseDecoder):
     
     def __init__(self, work_dir, model_name:str=None, beam_size:int=5, ensemble:int=1, gpu:int=-1):
         super(NERDecoder, self).__init__(work_dir, model_name=model_name, beam_size=beam_size,
-                                        ensemble=ensemble, gpu=gpu)
+                                            ensemble=ensemble, gpu=gpu)
         self.data_dir = self.work_dir / Path('data/')
-        self.test_dir = self.work_dir / Path('test/')
+        self.test_dir = Df.make_dir(self.work_dir / Path('test/'))
         self.vocab_files_ = {
             'word': self.data_dir / Path('word.vocab'),
             'subword': self.data_dir / Path('subword.vocab'),
@@ -151,21 +155,38 @@ class NERDecoder(object):
                             for key, val in self.vocab_files_.items()}
         return vocabs
 
-    def eval_decoded(self, out_file, tag_file, avg='macro'):
+    def eval_decoded(self, out_file, tag_file, avg='macro', max_len:int=64):
         with open(out_file, 'r') as fo:
-            y_pred = []
+            y_preds = []
             for line in fo:
                 line = line.strip().split()
-                y_pred.append(line)
+                # y_pred = [ 0 for x in range(max_len)]
+                # for p, word in enumerate(line):
+                    # if p >= max_len:
+                        # break
+                    # y_pred[p] = self.vocabs['tag'].index(word)
+                # y_preds.append([self.vocabs['tag'].index(x) for x in line])
+                y_preds.extend([self.vocabs['tag'].index(x) for x in line])
+                # y_preds.append(y_pred)
+            # y_preds = Cr.list2numpy(y_preds)
+
 
         with open(tag_file, 'r') as ft:
-            y_true = []
+            y_trues = []
             for line in ft:
                 line = line.strip().split()
-                y_true.append(line)
-        
+                y_true = [ 0 for x in range(max_len)]
+                for p, word in enumerate(line):
+                    if p >= max_len:
+                        break
+                    y_true[p] = self.vocabs['tag'].index(word)
+                # y_trues.append([self.vocabs['tag'].index(x) for x in line])
+                # y_trues.extend([self.vocabs['tag'].index(x) for x in line])
+                y_trues.extend(y_true)
+            # y_trues = Cr.list2numpy(y_trues)
+
         labels = self.vocabs['tag'].vocabulary
-        scores = precision_recall_fscore_support(y_true, y_pred, average=avg, labels=labels)
+        scores = precision_recall_fscore_support(y_trues, y_preds, average=avg, labels=range(1,len(labels)))
         return scores
 
     def decode(self, test_suits, test_name:str=None):
@@ -202,6 +223,7 @@ class NERDecoder(object):
         out_tensor = self.model.predict(*tensors)
         out_tensor = out_tensor.squeeze()
         out_array = Cr.tensor2numpy(out_tensor)
+        # print(out_array)
         return out_array.tolist()
 
     def decode_suit(self, test_dir, name, seq_file, tagseq_file, decoder_func=None, **kwargs):
@@ -228,7 +250,7 @@ class NERDecoder(object):
     def _write_decoded(self, dec_ds, out_file):
         fw = FileWriter(out_file)
         for row in dec_ds:
-            dec = *row
+            dec = row[0]
             fw.writeline(' '.join(dec))
         fw.close()
 
@@ -247,9 +269,10 @@ class NERDecoder(object):
                             include_subwords=include_subwords, max_seq_len=seq_len,
                             max_word_len=word_len, max_subword_len=subword_len)
 
+        Dataset.save(test_ds, seq_file.parent / Path('temp.txt'))
         out_ds = Dataset(['decs'])
         for row in test_ds:
             out = decoder_func(row)
-            dec = [self.vocabs['tag'].word(x) for x in out]
+            dec = [self.vocabs['tag'].name(x) for x in out]
             out_ds.cols['decs'].append(dec)
         return out_ds                        

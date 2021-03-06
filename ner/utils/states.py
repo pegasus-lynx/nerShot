@@ -22,6 +22,7 @@ class TrainerState(object):
         self.total_loss = 0.0
         self.curr_batch = 0
         self.start = time.time()
+        self.steps = 0
         return loss
 
     def step(self, loss):
@@ -29,14 +30,13 @@ class TrainerState(object):
         self.total_loss += loss
         msg = self.progress_bar_msg()
         if self.curr_batch == self.nbatches:
-            self.curr_batch = 0
             self.steps += 1
         return msg, self.is_check_point()
 
     def progress_bar_msg(self):
         elapsed = time.time() - self.start
         return f'Loss:{self.running_loss():.4f},' \
-               f' {int(self.nbatches / elapsed)}bats/s'
+               f' {int(self.curr_batch / elapsed)}bats/s'
 
     def is_check_point(self):
         return self.steps == self.check_point
@@ -50,8 +50,9 @@ class EarlyStopper:
         self.patience = patience
         self.min_steps = min_steps
         self.cur_steps = cur_steps
-
+        self.measures = []
         self.buf:int = buf
+        self.signi_round = 4
 
         if self.by in {'loss'}:
             self.minimizing = True
@@ -76,7 +77,7 @@ class EarlyStopper:
         if len(self.measures) < (self.patience + self.buf + 1):
             return False
 
-        old = (sef.measures[-self.patience-self.buf : -self.patience])
+        old = (self.measures[-self.patience-self.buf : -self.patience])
         old = sum(old) / len(old)
         recent = self.measures[-self.patience:]
 

@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import List, Union
-from __init__ import yaml
+from ner import yaml
+from ner.tool.log import _get_now
 
 def load_conf(inp: Union[str, Path]):
     fr = open(inp, 'r')
@@ -96,11 +97,6 @@ class MetaWriter(FileWriter):
         self.newline()
 
     def time(self):
-        def _get_now():
-            datetime_str = datetime.now().isoformat().replace('T', ' ')
-            pos = datetime_str.index('.')
-            return datetime_str[:pos]
-
         self.textline(f'Time {_get_now()}')
 
     def dashline(self, txt='-', length=50):

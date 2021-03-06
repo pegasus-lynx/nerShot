@@ -1,4 +1,4 @@
-from models import ModelRegistry
+from ner.models import ModelRegistry
 
 
 class ModelFactory(object):
@@ -11,7 +11,8 @@ class ModelFactory(object):
             tagger = ModelRegistry.classes[name](kwargs.get('gpu', -1), 
                                                 args['ntags'], args['nwords'], 
                                                 args['word_emb_dim'],
-                                                args['word_rnn_hid_dim'], 
+                                                args['word_rnn_hid_dim'],
+                                                sort_batch = kwargs.get('sort_batch', False), 
                                                 word_emb_mat = kwargs.get('word_emb_mat', None),
                                                 activation_type = args.get('activation', 'gelu'),
                                                 rnn_type = args.get('rnn_type', 'lstm'),
@@ -25,6 +26,7 @@ class ModelFactory(object):
                                                 args['ntags'], args['nwords'], 
                                                 args['word_emb_dim'],
                                                 args['word_rnn_hid_dim'], 
+                                                sort_batch = kwargs.get('sort_batch', False), 
                                                 word_emb_mat = kwargs.get('word_emb_mat', None),
                                                 activation_type = args.get('activation', 'gelu'),
                                                 rnn_type = args.get('rnn_type', 'lstm'),

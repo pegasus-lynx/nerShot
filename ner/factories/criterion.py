@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from layers.csim_loss import CosineSim
+from ner.layers.csim_loss import CosineSim
 
 class CriterionFactory():
 
@@ -12,7 +12,8 @@ class CriterionFactory():
     @staticmethod
     def create(criterion_type:str):
         criterion_type = criterion_type.lower()
-        assert criterion_type in CriterionFactory.criterion_types
+        available = CriterionFactory.criterion_types
+        assert criterion_type in available, f'Criterion {criterion_type} not available. Choose from {available}'
 
         if criterion_type == 'nll':
             criterion = nn.NLLLoss()

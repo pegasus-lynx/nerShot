@@ -4,7 +4,7 @@ from pathlib import Path
 class DirFuncs(object):
 
     @classmethod
-    def copy_file(src_file, tgt_file):
+    def copy_file(cls, src_file, tgt_file):
         if isinstance(src_file, str):
             src_file = Path(src_file)
         if isinstance(tgt_file, str):
@@ -13,7 +13,7 @@ class DirFuncs(object):
         return tgt_file
 
     @classmethod
-    def make_dir(dir_path):
+    def make_dir(cls, dir_path):
         if isinstance(dir_path, str):
             dir_path = Path(dir_path)
         if not dir_path.exists():
