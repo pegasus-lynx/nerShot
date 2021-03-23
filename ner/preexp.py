@@ -41,10 +41,12 @@ class NERPrepper(BasePrepper):
 
         data_dir = self.data_dir
         # Vocab
-        self._word_vocab_file = data_dir / Path('word.vocab')
-        self._subword_vocab_file = data_dir / Path('subword.vocab')
-        self._char_vocab_file = data_dir / Path('char.vocab')
-        self._tag_vocab_file = data_dir / Path('tag.vocab')
+        self.vocab_files = {
+            'seqs' : data_dir / Path('word.vocab'),
+            'subwordseqss' : data_dir / Path('subword.vocab'),
+            'charseqs' : data_dir / Path('char.vocab'),
+            'tagseqs' : data_dir / Path('tag.vocab')
+        }
 
         # Embedding file
         self._word_emb_file = data_dir / Path('word.emb.npz')
@@ -158,8 +160,7 @@ class NERPrepper(BasePrepper):
                     max_seq_len:int=64, max_word_len:int=20, max_subword_len:int=10, truncate:bool=True):
         keys = []
         include = { 'seqs':True, 'charseqss':include_chars, 'subwordseqss':include_subwords }
-        vocab_files = { 'seqs': self._word_vocab_file, 'charseqss' : self._char_vocab_file,
-                        'subwordseqss' : self._subword_vocab_file }
+        vocab_files = self.vocab_files
 
         vocabs, padshapes, dims = {}, {}, {}
         
@@ -195,16 +196,17 @@ class NERPrepper(BasePrepper):
 
     def prep_data(self, train_files:FileAny, val_files:FileAny, include_chars:bool=False, 
                     include_subwords:bool=False, max_seq_len:int=64, max_word_len:int=20, 
-                    max_subword_len:int=10, truncate:bool=True, **kwargs):
+                    max_subword_len:int=10, truncate:bool=True, include_seqs:bool=True, **kwargs):
 
         keys = []
-        include = { 'seqs':True, 'charseqss':True if include_subwords else False, 
-                    'subwordseqss':True if include_subwords else False, 'tagseqs':True }
-        vocab_files = { 'seqs': self._word_vocab_file, 'charseqss' : self._char_vocab_file,
-                        'subwordseqss' : self._subword_vocab_file, 'tagseqs' : self._tag_vocab_file }
+        include = { 'seqs' : True, 
+                    'charseqss' : True if include_subwords else False, 
+                    'subwordseqss' : True if include_subwords else False, 
+                    'tagseqs':True }
+        vocab_files = self.vocab_files
 
         vocabs, padshapes, dims = {}, {}, {}
-        for key, flag in include.values():
+        for key, flag in include.items():
             if flag:
                 keys.append(key)
                 dims[key] = 3 if key.endswith('ss') else 2
@@ -214,7 +216,7 @@ class NERPrepper(BasePrepper):
                     shape.append(max_word_len if key == 'charseqss' else max_subword_len)
                 padshapes[key] = shape
 
-        train_ds, val_ds = Dataset(keys, dims=dims)
+        train_ds = Dataset(keys, dims=dims)
         val_ds = Dataset(keys, dims=dims)
 
         datasets, dataloaders = dict(), dict()

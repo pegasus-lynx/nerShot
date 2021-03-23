@@ -30,16 +30,19 @@ class BaseExperiment(object):
         self.log_file = self.log_dir / 'exp.log'
         self.data_dir = work_dir / 'data'
         self.model_dir = work_dir / 'models'
+        
+        log.info(f'Reading/writing config file')
         self._config_file = work_dir / 'conf.yml'
         if isinstance(config, str) or isinstance(config, Path):
             config = load_conf(config)
         self.config = config if config else load_conf(self._config_file)
+        yaml.dump(self.config, stream=self._config_file)
+
 
         self._prepared_flag = self.work_dir / '_PREPARED'
         self._trained_flag = self.work_dir / '_TRAINED'
 
         self.device, self.gpu = self._set_self()
-        
 
     def has_prepared(self):
         return self._prepared_flag.exists()
@@ -214,15 +217,20 @@ class BaseExperiment(object):
 
 class NERTaggingExperiment(BaseExperiment):
 
-    def __init__(self, work_dir, config=None):
+    def __init__(self, work_dir, data_dir=None, config=None):
         super(NERTaggingExperiment, self).__init__(work_dir, config=config)
         if type(work_dir) is str:
             work_dir = Path(work_dir)
 
-        self._word_vocab_file = self.data_dir / Path('word.vocab')
-        self._subword_vocab_file = self.data_dir / Path('subword.vocab')
-        self._char_vocab_file = self.data_dir / Path('char.vocab')
-        self._tag_vocab_file = self.data_dir / Path('tag.vocab')
+        if data_dir:
+            self.data_dir = data_dir
+
+        self.vocab_files = {
+            'word' : self.data_dir / Path('word.vocab'),
+            'subword' : self.data_dir / Path('subword.vocab'),
+            'char' : self.data_dir / Path('char.vocab'),
+            'tag' : self.data_dir / Path('tag.vocab')
+        }
 
         self._word_emb_file = self.data_dir / Path('word.emb.npz')
         self._subword_emb_file = self.data_dir / Path('subword.emb.npz')
@@ -349,10 +357,10 @@ class NERTaggingExperiment(BaseExperiment):
 
     def load_vocabs(self):
         log.info('Loading vocabs for experiment ...')
-        self.word_vocab, self.subword_vocab, self.char_vocab, self.tag_vocab = [
-            Vocabs.load(f) if f.exists() else None for f in (
-                self._word_vocab_file, self._subword_vocab_file,
-                self._char_vocab_file, self._tag_vocab_file ) ]
+        self.vocabs = dict()
+        for key in ['word', 'subword', 'char', 'tag']:
+            f = self.vocab_files[key]
+            self.vocabs[key] = Vocabs.load(f) if f.exists() else None
 
     def load_data(self, indexed:bool=True):
         log.info('Loading datasets : Train , Valid ...')

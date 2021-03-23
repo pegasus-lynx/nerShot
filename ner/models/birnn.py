@@ -73,9 +73,7 @@ class BiRNNTagger(AbstractNERTagger):
         self.eval()
         outs, _ = self.forward(seqs_tensor)
         rnn_logits = outs[0]
-        # print(rnn_logits.shape)
         rnn_idx = torch.argmax(rnn_logits, dim=-1)
-        # print(rnn_idx)
         return rnn_idx
 
 

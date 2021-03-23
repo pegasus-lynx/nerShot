@@ -1,6 +1,6 @@
 import os
 import logging
-from rtg.tool.log import Logger
+from .tool.log import Logger
 
 log = Logger(console_level=logging.INFO)
 
